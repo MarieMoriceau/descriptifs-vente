@@ -381,7 +381,9 @@ Si une information est absente, utilise null."""
   "description": "Description courte du bien SANS mentionner le prix",
   "confrere": "ex: CBRE",
   "dpe": "ex: D",
-  "regime_fiscal": "ex: Hors TVA"
+  "regime_fiscal": "ex: Hors TVA",
+  "charges_bureaux": "ex: 45 euros/m2/an ou null si inconnu",
+  "impot_foncier": "ex: 12 euros/m2/an ou null si inconnu"
 }}
 
 TEXTE DU DESCRIPTIF :
@@ -438,44 +440,48 @@ def build_gamma_prompt(data, photo_urls, map_url):
     if map_url:
         map_block = f"CARTE DE LOCALISATION :\n{map_url}"
 
-    prompt = f"""Crée une présentation de vente immobilière professionnelle avec les informations suivantes.
+    prompt = f"""Utilise la structure exacte du template pour créer un nouveau descriptif de vente immobilière.
 
-TITRE DE LA PRÉSENTATION : {title}
+RÈGLES ABSOLUES :
+- Conserver EXACTEMENT la mise en page du template sans aucune modification
+- Conserver le bandeau violet de la page de couverture, ne pas le supprimer
+- Conserver le logo Equation SIE A SA TAILLE ORIGINALE, ne pas l'agrandir ni le dupliquer
+- NE PAS afficher le prix de vente sur la page de couverture — uniquement sur la page CONDITIONS
+- NE PAS inclure les logos ni les mentions des confrères (CBRE, JLL, Knight Frank, BNP, Cushman)
+- Afficher la carte Google Maps sur la page ACCES - DESSERTE uniquement
+- Conserver la dernière page de contact sans modification
+
+TITRE : {title}
 
 ADRESSE : {adresse}
 LOCALISATION : {cp_label}
 SURFACE : {surfaces}
-
-PRIX DE VENTE : {prix}
-PRIX AU M² : {prix_m2}
-HONORAIRES : {honoraires}
 DISPONIBILITÉ : {dispo}
 
 DESCRIPTION :
 {description}
 
+PHOTOS DU BIEN :
+{photos_block}
+
+PAGE ACCES - DESSERTE :
+CARTE : {map_url or ""}
 TRANSPORTS :
 {transports}
 
-PRESTATIONS & ÉQUIPEMENTS :
+PRESTATIONS ET EQUIPEMENTS :
 {prestations}
 
-{photos_block}
+PAGE COUTS A L'ENTREE :
+Prix de vente : {prix}
+Honoraires de vente : A la charge de l'acquéreur
+Taxe bureaux : 21,31€/m2/an
+{f"Charges bureaux : {data.get('charges_bureaux')}" if data.get('charges_bureaux') else ""}
+{f"Impôt foncier : {data.get('impot_foncier')}" if data.get('impot_foncier') else ""}
 
-{map_block}
-
-PAGE CONDITIONS (slide dédiée) :
-• Prix de vente : {prix}
-• Honoraires : {honoraires}
-• Régime fiscal : {fiscal}
-• DPE : {dpe}
-
-RÈGLES IMPORTANTES :
-- Conserver le logo Equation SIE à sa taille originale, ne pas l'agrandir ni le dupliquer
-- Ne pas inclure les logos ou mentions des confrères
-- Présentation sobre, professionnelle, aux couleurs Equation SIE (rouge #e53935 et sombre #1a1a2e)
-- Utiliser les photos fournies pour illustrer les slides
-- Afficher la carte de localisation sur la slide dédiée à l'adresse
+PAGE DONNÉES JURIDIQUES :
+Régime fiscal : Droits d'enregistrement
+DPE : {dpe}
 """
     return prompt, title
 
