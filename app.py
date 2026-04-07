@@ -503,7 +503,7 @@ def call_gamma_api(prompt, title, job_id):
             "language": "fr"
         },
         "imageOptions": {
-            "source": "web"           # use web images, not AI-generated
+            "source": "webAllImages"
         },
         "cardOptions": {
             "dimensions": "16x9"
