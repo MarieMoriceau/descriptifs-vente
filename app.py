@@ -493,7 +493,7 @@ def call_gamma_api(prompt, title, job_id):
 
     payload = {
         "inputText": prompt,
-        "textMode": "text",           # "text" = use content as-is (no AI rewrite)
+        "textMode": "preserve",        # garder le contenu tel quel
         "format": "presentation",
         "numCards": 12,
         "cardSplit": "auto",
