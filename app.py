@@ -482,8 +482,8 @@ RÈGLES IMPORTANTES :
 
 def call_gamma_api(prompt, title, job_id):
     """
-    Call Gamma API v1.0 — async generation with polling.
-    POST /v1.0/generations → generationId → poll GET until done → gammaUrl
+    Call Gamma API v1.0 — from-template endpoint (identique au code loc qui fonctionne).
+    POST /v1.0/generations/from-template → generationId → poll GET → gammaUrl
     """
     BASE = "https://public-api.gamma.app/v1.0"
     headers = {
@@ -492,28 +492,15 @@ def call_gamma_api(prompt, title, job_id):
     }
 
     payload = {
-        "inputText": prompt,
-        "textMode": "preserve",        # garder le contenu tel quel
-        "format": "presentation",
-        "numCards": 12,
-        "cardSplit": "auto",
-        "themeId": GAMMA_THEME_ID,
-        "textOptions": {
-            "tone": "professional",
-            "language": "fr"
-        },
-        "imageOptions": {
-            "source": "webAllImages"
-        },
-        "cardOptions": {
-            "dimensions": "16x9"
-        }
+        "gammaId": GAMMA_TEMPLATE_ID,
+        "prompt": prompt,
+        "themeId": GAMMA_THEME_ID
     }
 
-    log(job_id, "📡 Envoi à l'API Gamma v1.0…")
+    log(job_id, "📡 Envoi à l'API Gamma (from-template)…")
     try:
         resp = requests.post(
-            f"{BASE}/generations",
+            f"{BASE}/generations/from-template",
             headers=headers,
             json=payload,
             timeout=60
@@ -524,46 +511,41 @@ def call_gamma_api(prompt, title, job_id):
             log(job_id, f"Gamma error: {resp.text[:300]}")
             return None
 
-        result = resp.json()
-        generation_id = result.get("generationId") or result.get("id")
+        generation_id = resp.json().get("generationId")
         if not generation_id:
-            log(job_id, f"Pas de generationId dans la réponse: {str(result)[:200]}")
+            log(job_id, f"Pas de generationId: {resp.text[:200]}")
             return None
 
-        log(job_id, f"⏳ Gamma generation démarrée: {generation_id}")
+        log(job_id, f"⏳ Generation démarrée: {generation_id}")
 
-        # Polling — toutes les 5 secondes, max 3 minutes
-        for attempt in range(36):
+        # Polling toutes les 5s, max 5 minutes (60 tentatives)
+        for attempt in range(60):
             time.sleep(5)
             poll = requests.get(
                 f"{BASE}/generations/{generation_id}",
-                headers=headers,
-                timeout=30
+                headers={"X-API-KEY": GAMMA_API_KEY},
+                timeout=20
             )
             if poll.status_code != 200:
                 log(job_id, f"Poll error {poll.status_code}")
                 continue
 
-            poll_data = poll.json()
-            status = poll_data.get("status", "")
-            log(job_id, f"Gamma poll {attempt+1}: {status}")
+            result = poll.json()
+            status = result.get("status", "")
+            log(job_id, f"Poll {attempt+1}: {status}")
 
             if status == "completed":
-                gamma_url = poll_data.get("gammaUrl") or poll_data.get("url")
+                gamma_url = result.get("gammaUrl", "")
                 if gamma_url:
                     return gamma_url
-                # Fallback: construire l'URL depuis l'ID
-                gid = poll_data.get("gammaId") or poll_data.get("id")
-                if gid:
-                    return f"https://gamma.app/docs/{gid}"
-                log(job_id, f"completed mais pas d'URL: {str(poll_data)[:200]}")
+                log(job_id, f"completed mais pas de gammaUrl: {str(result)[:200]}")
                 return None
 
             if status == "failed":
-                log(job_id, f"Gamma generation failed: {str(poll_data)[:200]}")
+                log(job_id, f"Generation failed: {str(result)[:200]}")
                 return None
 
-        log(job_id, "Gamma timeout après 3 minutes de polling")
+        log(job_id, "Timeout après 5 minutes de polling")
         return None
 
     except requests.Timeout:
