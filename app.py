@@ -465,23 +465,27 @@ PHOTOS DU BIEN :
 {photos_block}
 
 PAGE ACCES - DESSERTE :
-CARTE : {map_url or ""}
 TRANSPORTS :
 {transports}
+CARTE GOOGLE MAPS (placer après la liste des transports, sur la même page) : {map_url or ""}
 
 PRESTATIONS ET EQUIPEMENTS :
 {prestations}
 
-PAGE COUTS A L'ENTREE :
+PAGE COÛTS À L'ENTRÉE :
 Prix de vente : {prix}
 Honoraires de vente : A la charge de l'acquéreur
 Taxe bureaux : 21,31€/m2/an
-{f"Charges bureaux : {data.get('charges_bureaux')}" if data.get('charges_bureaux') else ""}
-{f"Impôt foncier : {data.get('impot_foncier')}" if data.get('impot_foncier') else ""}
+Charges bureaux : {data.get("charges_bureaux") or "En cours de détermination"}
+Impôt foncier : {data.get("impot_foncier") or "En cours de détermination"}
 
 PAGE DONNÉES JURIDIQUES :
 Régime fiscal : Droits d'enregistrement
 DPE : {dpe}
+
+PAGE 7 - PHOTOS :
+Titre : Photos
+Contenu : laisser en blanc, ne pas insérer d'images automatiquement sur cette page
 """
     return prompt, title
 
