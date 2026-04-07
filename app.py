@@ -482,52 +482,92 @@ RÈGLES IMPORTANTES :
 
 def call_gamma_api(prompt, title, job_id):
     """
-    Call Gamma API to generate a presentation from template.
-    Returns the Gamma URL or None.
+    Call Gamma API v1.0 — async generation with polling.
+    POST /v1.0/generations → generationId → poll GET until done → gammaUrl
     """
+    BASE = "https://public-api.gamma.app/v1.0"
     headers = {
-        "Authorization": f"Bearer {GAMMA_API_KEY}",
+        "X-API-KEY": GAMMA_API_KEY,
         "Content-Type": "application/json"
     }
 
-    # Step 1 — Generate from template
     payload = {
-        "title": title,
-        "text": prompt,
-        "theme": GAMMA_THEME_ID,
-        "template": GAMMA_TEMPLATE_ID,
-        "mode": "doc"
+        "inputText": prompt,
+        "textMode": "text",           # "text" = use content as-is (no AI rewrite)
+        "format": "presentation",
+        "numCards": 12,
+        "cardSplit": "auto",
+        "themeId": GAMMA_THEME_ID,
+        "textOptions": {
+            "tone": "professional",
+            "language": "fr"
+        },
+        "imageOptions": {
+            "source": "web"           # use web images, not AI-generated
+        },
+        "cardOptions": {
+            "dimensions": "16x9"
+        }
     }
 
-    log(job_id, "📡 Envoi à l'API Gamma…")
+    log(job_id, "📡 Envoi à l'API Gamma v1.0…")
     try:
         resp = requests.post(
-            "https://api.gamma.app/api/generate/doc",
+            f"{BASE}/generations",
             headers=headers,
             json=payload,
-            timeout=120
+            timeout=60
         )
-        log(job_id, f"Gamma status: {resp.status_code}")
+        log(job_id, f"Gamma POST status: {resp.status_code}")
 
-        if resp.status_code not in (200, 201):
-            log(job_id, f"Gamma error body: {resp.text[:300]}")
+        if resp.status_code not in (200, 201, 202):
+            log(job_id, f"Gamma error: {resp.text[:300]}")
             return None
 
         result = resp.json()
-        # Gamma returns either { url } or { id } depending on version
-        gamma_url = result.get("url") or result.get("docUrl") or result.get("link")
-        doc_id    = result.get("id") or result.get("docId")
+        generation_id = result.get("generationId") or result.get("id")
+        if not generation_id:
+            log(job_id, f"Pas de generationId dans la réponse: {str(result)[:200]}")
+            return None
 
-        if gamma_url:
-            return gamma_url
-        if doc_id:
-            return f"https://gamma.app/docs/{doc_id}"
+        log(job_id, f"⏳ Gamma generation démarrée: {generation_id}")
 
-        log(job_id, f"Gamma response (no URL found): {str(result)[:200]}")
+        # Polling — toutes les 5 secondes, max 3 minutes
+        for attempt in range(36):
+            time.sleep(5)
+            poll = requests.get(
+                f"{BASE}/generations/{generation_id}",
+                headers=headers,
+                timeout=30
+            )
+            if poll.status_code != 200:
+                log(job_id, f"Poll error {poll.status_code}")
+                continue
+
+            poll_data = poll.json()
+            status = poll_data.get("status", "")
+            log(job_id, f"Gamma poll {attempt+1}: {status}")
+
+            if status == "completed":
+                gamma_url = poll_data.get("gammaUrl") or poll_data.get("url")
+                if gamma_url:
+                    return gamma_url
+                # Fallback: construire l'URL depuis l'ID
+                gid = poll_data.get("gammaId") or poll_data.get("id")
+                if gid:
+                    return f"https://gamma.app/docs/{gid}"
+                log(job_id, f"completed mais pas d'URL: {str(poll_data)[:200]}")
+                return None
+
+            if status == "failed":
+                log(job_id, f"Gamma generation failed: {str(poll_data)[:200]}")
+                return None
+
+        log(job_id, "Gamma timeout après 3 minutes de polling")
         return None
 
     except requests.Timeout:
-        log(job_id, "Gamma API timeout (120s)")
+        log(job_id, "Gamma API timeout")
         return None
     except Exception as e:
         log(job_id, f"Gamma API exception: {e}")
